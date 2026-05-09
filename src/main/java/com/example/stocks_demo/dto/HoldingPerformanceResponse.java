@@ -1,11 +1,16 @@
 package com.example.stocks_demo.dto;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+
 public class HoldingPerformanceResponse {
 
     private String symbol;
     private String assetType;
-    private double quantity;
-    private double averageBuyPrice;
+
+    private BigDecimal quantity;
+    private BigDecimal averageBuyPrice;
+
     private double currentPrice;
 
     private double totalCost;
@@ -19,8 +24,8 @@ public class HoldingPerformanceResponse {
     public HoldingPerformanceResponse(
             String symbol,
             String assetType,
-            double quantity,
-            double averageBuyPrice,
+            BigDecimal quantity,
+            BigDecimal averageBuyPrice,
             double currentPrice,
             double previousClose
     ) {
@@ -30,24 +35,81 @@ public class HoldingPerformanceResponse {
         this.averageBuyPrice = averageBuyPrice;
         this.currentPrice = currentPrice;
 
-        this.totalCost = quantity * averageBuyPrice;
-        this.currentValue = quantity * currentPrice;
-        this.profit = currentValue - totalCost;
-        this.profitPercent = totalCost == 0 ? 0 : (profit / totalCost) * 100;
+        BigDecimal currentPriceBD = BigDecimal.valueOf(currentPrice);
+        BigDecimal previousCloseBD = BigDecimal.valueOf(previousClose);
 
-        this.dailyChange = (currentPrice - previousClose) * quantity;
-        this.dailyChangePercent = previousClose == 0 ? 0 : ((currentPrice - previousClose) / previousClose) * 100;
+        BigDecimal totalCostBD =
+                quantity.multiply(averageBuyPrice);
+
+        BigDecimal currentValueBD =
+                quantity.multiply(currentPriceBD);
+
+        BigDecimal profitBD =
+                currentValueBD.subtract(totalCostBD);
+
+        this.totalCost = totalCostBD.doubleValue();
+        this.currentValue = currentValueBD.doubleValue();
+        this.profit = profitBD.doubleValue();
+
+        this.profitPercent = totalCostBD.compareTo(BigDecimal.ZERO) == 0
+                ? 0
+                : profitBD
+                  .divide(totalCostBD, 6, RoundingMode.HALF_UP)
+                  .multiply(BigDecimal.valueOf(100))
+                  .doubleValue();
+
+        BigDecimal dailyChangeBD =
+                currentPriceBD.subtract(previousCloseBD)
+                        .multiply(quantity);
+
+        this.dailyChange = dailyChangeBD.doubleValue();
+
+        this.dailyChangePercent = previousClose == 0
+                ? 0
+                : ((currentPrice - previousClose) / previousClose) * 100;
     }
 
-    public String getSymbol() { return symbol; }
-    public String getAssetType() { return assetType; }
-    public double getQuantity() { return quantity; }
-    public double getAverageBuyPrice() { return averageBuyPrice; }
-    public double getCurrentPrice() { return currentPrice; }
-    public double getTotalCost() { return totalCost; }
-    public double getCurrentValue() { return currentValue; }
-    public double getProfit() { return profit; }
-    public double getProfitPercent() { return profitPercent; }
-    public double getDailyChange() { return dailyChange; }
-    public double getDailyChangePercent() { return dailyChangePercent; }
+    public String getSymbol() {
+        return symbol;
+    }
+
+    public String getAssetType() {
+        return assetType;
+    }
+
+    public BigDecimal getQuantity() {
+        return quantity;
+    }
+
+    public BigDecimal getAverageBuyPrice() {
+        return averageBuyPrice;
+    }
+
+    public double getCurrentPrice() {
+        return currentPrice;
+    }
+
+    public double getTotalCost() {
+        return totalCost;
+    }
+
+    public double getCurrentValue() {
+        return currentValue;
+    }
+
+    public double getProfit() {
+        return profit;
+    }
+
+    public double getProfitPercent() {
+        return profitPercent;
+    }
+
+    public double getDailyChange() {
+        return dailyChange;
+    }
+
+    public double getDailyChangePercent() {
+        return dailyChangePercent;
+    }
 }

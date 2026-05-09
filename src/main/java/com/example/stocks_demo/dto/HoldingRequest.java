@@ -1,8 +1,9 @@
 package com.example.stocks_demo.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
+
+import java.math.BigDecimal;
 
 public class HoldingRequest {
 
@@ -12,11 +13,9 @@ public class HoldingRequest {
     @NotBlank(message = "Asset type is required")
     private String assetType;
 
-    @Positive(message = "Quantity must be more than 0")
-    private double quantity;
+    private BigDecimal quantity;
 
-    @PositiveOrZero(message = "Average buy price cannot be negative")
-    private double averageBuyPrice;
+    private BigDecimal averageBuyPrice;
 
     public String getSymbol() {
         return symbol;
@@ -24,10 +23,10 @@ public class HoldingRequest {
     public String getAssetType() {
         return assetType;
     }
-    public double getQuantity() {
+    public BigDecimal getQuantity() {
         return quantity;
     }
-    public double getAverageBuyPrice() {
+    public BigDecimal getAverageBuyPrice() {
         return averageBuyPrice;
     }
 }

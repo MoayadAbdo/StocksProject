@@ -15,7 +15,8 @@ public class EtfService {
                     "MSFT", 6.5,
                     "NVDA", 5.0,
                     "AMZN", 3.5,
-                    "GOOGL", 2.5
+                    "GOOGL", 2.5,
+                    "META", 2.2
             );
 
             // Vanguard Information Technology ETF
@@ -32,7 +33,8 @@ public class EtfService {
                     "AAPL", 8.5,
                     "MSFT", 8.0,
                     "NVDA", 7.0,
-                    "GOOGL", 4.0
+                    "GOOGL", 4.0,
+                    "META", 3.0
             );
 
             default -> Map.of();

@@ -7,19 +7,31 @@ import com.example.stocks_demo.model.Holding;
 import com.example.stocks_demo.repository.HoldingRepository;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.*;
 
 @Service
 public class PortfolioService {
+    private static final class ExposureAccumulator {
+        private BigDecimal stockValue = BigDecimal.ZERO;
+        private BigDecimal etfValue = BigDecimal.ZERO;
+
+        private BigDecimal getTotalValue() {
+            return stockValue.add(etfValue);
+        }
+    }
 
     private final HoldingRepository repo;
     private final StockService stockService;
     private final EtfService etfService;
     private final CurrentUserService currentUserService;
+
     public PortfolioService(
             HoldingRepository repo,
             StockService stockService,
-            EtfService etfService, CurrentUserService currentUserService
+            EtfService etfService,
+            CurrentUserService currentUserService
     ) {
         this.repo = repo;
         this.stockService = stockService;
@@ -30,23 +42,34 @@ public class PortfolioService {
     public PortfolioSummaryResponse getSummary() {
         List<Holding> holdings = repo.findByUser(currentUserService.getCurrentUser());
 
-        double totalValue = 0;
-        double totalCost = 0;
+        BigDecimal totalValue = BigDecimal.ZERO;
+        BigDecimal totalCost = BigDecimal.ZERO;
 
         for (Holding h : holdings) {
-            double price = stockService.getPrice(h.getSymbol());
+            BigDecimal currentPrice = BigDecimal.valueOf(
+                    stockService.getPrice(h.getSymbol())
+            );
 
-            totalValue += h.getQuantity() * price;
-            totalCost += h.getQuantity() * h.getAverageBuyPrice();
+            BigDecimal holdingValue = h.getQuantity().multiply(currentPrice);
+            BigDecimal holdingCost = h.getQuantity().multiply(h.getAverageBuyPrice());
+
+            totalValue = totalValue.add(holdingValue);
+            totalCost = totalCost.add(holdingCost);
         }
 
-        double profit = totalValue - totalCost;
-        double profitPercent = totalCost == 0 ? 0 : (profit / totalCost) * 100;
+        BigDecimal profit = totalValue.subtract(totalCost);
+
+        double profitPercent = totalCost.compareTo(BigDecimal.ZERO) == 0
+                ? 0
+                : profit
+                  .divide(totalCost, 6, RoundingMode.HALF_UP)
+                  .multiply(BigDecimal.valueOf(100))
+                  .doubleValue();
 
         return new PortfolioSummaryResponse(
-                totalValue,
-                totalCost,
-                profit,
+                totalValue.doubleValue(),
+                totalCost.doubleValue(),
+                profit.doubleValue(),
                 profitPercent
         );
     }
@@ -54,45 +77,85 @@ public class PortfolioService {
     public List<ExposureResponse> getExposure() {
         List<Holding> holdings = repo.findByUser(currentUserService.getCurrentUser());
 
-        Map<String, Double> exposure = new HashMap<>();
-        double totalPortfolioValue = 0;
+        Map<String, ExposureAccumulator> exposure = new HashMap<>();
+        BigDecimal totalPortfolioValue = BigDecimal.ZERO;
 
         for (Holding h : holdings) {
-            double price = stockService.getPrice(h.getSymbol());
-            double holdingValue = h.getQuantity() * price;
+            BigDecimal currentPrice = BigDecimal.valueOf(
+                    stockService.getPrice(h.getSymbol())
+            );
 
-            totalPortfolioValue += holdingValue;
+            BigDecimal holdingValue = h.getQuantity().multiply(currentPrice);
+
+            totalPortfolioValue = totalPortfolioValue.add(holdingValue);
 
             if (h.getAssetType().equalsIgnoreCase("STOCK")) {
-                exposure.merge(h.getSymbol().toUpperCase(), holdingValue, Double::sum);
+                String symbol = h.getSymbol().toUpperCase();
+                ExposureAccumulator bucket = exposure.computeIfAbsent(
+                        symbol,
+                        ignored -> new ExposureAccumulator()
+                );
+                bucket.stockValue = bucket.stockValue.add(holdingValue);
             }
 
             if (h.getAssetType().equalsIgnoreCase("ETF")) {
                 Map<String, Double> etfHoldings = etfService.getHoldings(h.getSymbol());
 
                 for (Map.Entry<String, Double> entry : etfHoldings.entrySet()) {
-                    String companySymbol = entry.getKey();
-                    double weightPercent = entry.getValue();
+                    String companySymbol = entry.getKey().toUpperCase();
 
-                    double companyExposure = holdingValue * (weightPercent / 100);
-                    exposure.merge(companySymbol, companyExposure, Double::sum);
+                    BigDecimal weightPercent = BigDecimal.valueOf(entry.getValue());
+
+                    BigDecimal companyExposure = holdingValue
+                            .multiply(weightPercent)
+                            .divide(BigDecimal.valueOf(100), 6, RoundingMode.HALF_UP);
+
+                    ExposureAccumulator bucket = exposure.computeIfAbsent(
+                            companySymbol,
+                            ignored -> new ExposureAccumulator()
+                    );
+                    bucket.etfValue = bucket.etfValue.add(companyExposure);
                 }
             }
         }
 
         List<ExposureResponse> response = new ArrayList<>();
 
-        for (Map.Entry<String, Double> entry : exposure.entrySet()) {
-            double value = entry.getValue();
+        for (Map.Entry<String, ExposureAccumulator> entry : exposure.entrySet()) {
+            ExposureAccumulator accumulator = entry.getValue();
+            BigDecimal stockValue = accumulator.stockValue;
+            BigDecimal etfValue = accumulator.etfValue;
+            BigDecimal value = accumulator.getTotalValue();
 
-            double percentage = totalPortfolioValue == 0
+            double percentage = totalPortfolioValue.compareTo(BigDecimal.ZERO) == 0
                     ? 0
-                    : (value / totalPortfolioValue) * 100;
+                    : value
+                      .divide(totalPortfolioValue, 6, RoundingMode.HALF_UP)
+                      .multiply(BigDecimal.valueOf(100))
+                      .doubleValue();
+
+            double stockPercentage = totalPortfolioValue.compareTo(BigDecimal.ZERO) == 0
+                    ? 0
+                    : stockValue
+                      .divide(totalPortfolioValue, 6, RoundingMode.HALF_UP)
+                      .multiply(BigDecimal.valueOf(100))
+                      .doubleValue();
+
+            double etfPercentage = totalPortfolioValue.compareTo(BigDecimal.ZERO) == 0
+                    ? 0
+                    : etfValue
+                      .divide(totalPortfolioValue, 6, RoundingMode.HALF_UP)
+                      .multiply(BigDecimal.valueOf(100))
+                      .doubleValue();
 
             response.add(new ExposureResponse(
                     entry.getKey(),
-                    value,
-                    percentage
+                    value.doubleValue(),
+                    percentage,
+                    stockValue.doubleValue(),
+                    etfValue.doubleValue(),
+                    stockPercentage,
+                    etfPercentage
             ));
         }
 
@@ -100,11 +163,12 @@ public class PortfolioService {
 
         return response;
     }
+
     public PortfolioPerformanceResponse getPerformance() {
         List<Holding> holdings = repo.findByUser(currentUserService.getCurrentUser());
 
-        double totalValue = 0;
-        double totalCost = 0;
+        BigDecimal totalValue = BigDecimal.ZERO;
+        BigDecimal totalCost = BigDecimal.ZERO;
 
         String topGainer = null;
         String topLoser = null;
@@ -113,16 +177,23 @@ public class PortfolioService {
         double minProfitPercent = Double.POSITIVE_INFINITY;
 
         for (Holding h : holdings) {
-            double currentPrice = stockService.getPrice(h.getSymbol());
+            BigDecimal currentPrice = BigDecimal.valueOf(
+                    stockService.getPrice(h.getSymbol())
+            );
 
-            double cost = h.getQuantity() * h.getAverageBuyPrice();
-            double value = h.getQuantity() * currentPrice;
+            BigDecimal cost = h.getQuantity().multiply(h.getAverageBuyPrice());
+            BigDecimal value = h.getQuantity().multiply(currentPrice);
+            BigDecimal profit = value.subtract(cost);
 
-            double profit = value - cost;
-            double profitPercent = cost == 0 ? 0 : (profit / cost) * 100;
+            double profitPercent = cost.compareTo(BigDecimal.ZERO) == 0
+                    ? 0
+                    : profit
+                      .divide(cost, 6, RoundingMode.HALF_UP)
+                      .multiply(BigDecimal.valueOf(100))
+                      .doubleValue();
 
-            totalValue += value;
-            totalCost += cost;
+            totalValue = totalValue.add(value);
+            totalCost = totalCost.add(cost);
 
             if (profitPercent > maxProfitPercent) {
                 maxProfitPercent = profitPercent;
@@ -135,13 +206,19 @@ public class PortfolioService {
             }
         }
 
-        double totalProfit = totalValue - totalCost;
-        double totalProfitPercent = totalCost == 0 ? 0 : (totalProfit / totalCost) * 100;
+        BigDecimal totalProfit = totalValue.subtract(totalCost);
+
+        double totalProfitPercent = totalCost.compareTo(BigDecimal.ZERO) == 0
+                ? 0
+                : totalProfit
+                  .divide(totalCost, 6, RoundingMode.HALF_UP)
+                  .multiply(BigDecimal.valueOf(100))
+                  .doubleValue();
 
         return new PortfolioPerformanceResponse(
-                totalValue,
-                totalCost,
-                totalProfit,
+                totalValue.doubleValue(),
+                totalCost.doubleValue(),
+                totalProfit.doubleValue(),
                 totalProfitPercent,
                 topGainer,
                 topLoser
