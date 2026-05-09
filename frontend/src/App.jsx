@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import HoldingsTable from "./components/HoldingsTable";
@@ -305,5 +306,18 @@ export default function App({ onLogout, onUnauthorized }) {
         )}
       </main>
     </div>
+=======
+import { Navigate, Route, Routes } from "react-router-dom";
+import DashboardPage from "./pages/DashboardPage";
+import LoginPage from "./pages/LoginPage";
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<LoginPage />} />
+      <Route path="/dashboard" element={<DashboardPage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+>>>>>>> f31afd343b5a1bc92cd50e1c5d73da5d87b5bd46
   );
 }
