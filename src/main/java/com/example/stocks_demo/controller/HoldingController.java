@@ -1,65 +1,54 @@
 package com.example.stocks_demo.controller;
 
+import com.example.stocks_demo.dto.HoldingPerformanceResponse;
 import com.example.stocks_demo.dto.HoldingRequest;
 import com.example.stocks_demo.model.Holding;
-import com.example.stocks_demo.repository.HoldingRepository;
+import com.example.stocks_demo.service.HoldingService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-//GET    /api/holdings
-//POST   /api/holdings
-//DELETE /api/holdings/{id}
 @RestController
 @RequestMapping("/api/holdings")
 public class HoldingController {
 
-    private final HoldingRepository repo;
+    private final HoldingService holdingService;
 
-    public HoldingController(HoldingRepository repo) {
-        this.repo = repo;
+    public HoldingController(HoldingService holdingService) {
+        this.holdingService = holdingService;
     }
+
     @GetMapping
-    public List<Holding> getAll(){
-        return repo.findAll();
+    public List<Holding> getAll() {
+        return holdingService.getAll();
     }
+
+    @GetMapping("/performance")
+    public List<HoldingPerformanceResponse> getPerformance() {
+        return holdingService.getPerformance();
+    }
+
     @GetMapping("/{id}")
-    public Holding getHoldingById(@PathVariable Long id){
-        return repo.findById(id)
-                .orElseThrow(()-> new RuntimeException("Holding not found with id: "+id));
+    public Holding getHoldingById(@PathVariable Long id) {
+        return holdingService.getById(id);
     }
 
     @PostMapping
-    public Holding addHolding(@Valid @RequestBody HoldingRequest request){
-        Holding holding = new Holding();
-        holding.setSymbol(request.getSymbol().toUpperCase());
-        holding.setAssetType(request.getAssetType().toUpperCase());
-        holding.setQuantity(request.getQuantity());
-        holding.setAverageBuyPrice(request.getAverageBuyPrice());
-
-        return repo.save(holding);
+    public Holding addHolding(@Valid @RequestBody HoldingRequest request) {
+        return holdingService.add(request);
     }
+
     @PutMapping("/{id}")
     public Holding updateHolding(
             @PathVariable Long id,
-            @RequestBody Holding updatedHolding
-    ){
-        Holding existingHolding = repo.findById(id)
-                .orElseThrow(() -> new RuntimeException("Holding not found with id: " + id));
-
-        existingHolding.setSymbol(updatedHolding.getSymbol().toUpperCase());
-        existingHolding.setAssetType(updatedHolding.getAssetType());
-        existingHolding.setQuantity(updatedHolding.getQuantity());
-        existingHolding.setAverageBuyPrice(updatedHolding.getAverageBuyPrice());
-
-        return repo.save(existingHolding);
+            @Valid @RequestBody HoldingRequest request
+    ) {
+        return holdingService.update(id, request);
     }
+
     @DeleteMapping("/{id}")
-    public void deleteHolding(@PathVariable Long id){
-        if(!repo.existsById(id)){
-            throw new RuntimeException("Holding not found with id: "+id);
-        }
-        repo.deleteById(id);
+    public void deleteHolding(@PathVariable Long id) {
+        holdingService.delete(id);
     }
 }

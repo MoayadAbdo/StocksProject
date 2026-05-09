@@ -1,6 +1,7 @@
 package com.example.stocks_demo.service;
 
 import com.example.stocks_demo.dto.ExposureResponse;
+import com.example.stocks_demo.dto.PortfolioPerformanceResponse;
 import com.example.stocks_demo.dto.PortfolioSummaryResponse;
 import com.example.stocks_demo.model.Holding;
 import com.example.stocks_demo.repository.HoldingRepository;
@@ -14,19 +15,20 @@ public class PortfolioService {
     private final HoldingRepository repo;
     private final StockService stockService;
     private final EtfService etfService;
-
+    private final CurrentUserService currentUserService;
     public PortfolioService(
             HoldingRepository repo,
             StockService stockService,
-            EtfService etfService
+            EtfService etfService, CurrentUserService currentUserService
     ) {
         this.repo = repo;
         this.stockService = stockService;
         this.etfService = etfService;
+        this.currentUserService = currentUserService;
     }
 
     public PortfolioSummaryResponse getSummary() {
-        List<Holding> holdings = repo.findAll();
+        List<Holding> holdings = repo.findByUser(currentUserService.getCurrentUser());
 
         double totalValue = 0;
         double totalCost = 0;
@@ -50,7 +52,7 @@ public class PortfolioService {
     }
 
     public List<ExposureResponse> getExposure() {
-        List<Holding> holdings = repo.findAll();
+        List<Holding> holdings = repo.findByUser(currentUserService.getCurrentUser());
 
         Map<String, Double> exposure = new HashMap<>();
         double totalPortfolioValue = 0;
@@ -97,5 +99,52 @@ public class PortfolioService {
         response.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
 
         return response;
+    }
+    public PortfolioPerformanceResponse getPerformance() {
+        List<Holding> holdings = repo.findByUser(currentUserService.getCurrentUser());
+
+        double totalValue = 0;
+        double totalCost = 0;
+
+        String topGainer = null;
+        String topLoser = null;
+
+        double maxProfitPercent = Double.NEGATIVE_INFINITY;
+        double minProfitPercent = Double.POSITIVE_INFINITY;
+
+        for (Holding h : holdings) {
+            double currentPrice = stockService.getPrice(h.getSymbol());
+
+            double cost = h.getQuantity() * h.getAverageBuyPrice();
+            double value = h.getQuantity() * currentPrice;
+
+            double profit = value - cost;
+            double profitPercent = cost == 0 ? 0 : (profit / cost) * 100;
+
+            totalValue += value;
+            totalCost += cost;
+
+            if (profitPercent > maxProfitPercent) {
+                maxProfitPercent = profitPercent;
+                topGainer = h.getSymbol();
+            }
+
+            if (profitPercent < minProfitPercent) {
+                minProfitPercent = profitPercent;
+                topLoser = h.getSymbol();
+            }
+        }
+
+        double totalProfit = totalValue - totalCost;
+        double totalProfitPercent = totalCost == 0 ? 0 : (totalProfit / totalCost) * 100;
+
+        return new PortfolioPerformanceResponse(
+                totalValue,
+                totalCost,
+                totalProfit,
+                totalProfitPercent,
+                topGainer,
+                topLoser
+        );
     }
 }
