@@ -1,0 +1,33 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+:root.dark {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+@layer components {
+  .surface-card {
+    @apply rounded-2xl border border-zinc-200/85 bg-white/90 shadow-soft transition-all duration-300 dark:border-zinc-800 dark:bg-zinc-900/85 dark:shadow-soft-dark;
+  }
+
+  .muted-text {
+    @apply text-zinc-500 dark:text-zinc-400;
+  }
+}
